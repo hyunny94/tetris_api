@@ -6,8 +6,12 @@ const m = require('../helpers/middlewares')
 module.exports = router
 
 router.get('/', async (req, res) => {
+    res.header("Access-Control-Allow-Origin", "https://master.d1eay1f6v0z5km.amplifyapp.com");
     await rank.getRanks()
-        .then(ranks => res.json(ranks))
+        .then(ranks => {
+            // console.log(res);
+            return res.json(ranks);
+        })
         .catch(err => {
             if (err.status) {
                 res.status(err.status).json({ message: err.message })
@@ -18,6 +22,7 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/', m.checkFieldsRank, async (req, res) => {
+    res.header("Access-Control-Allow-Origin", "https://master.d1eay1f6v0z5km.amplifyapp.com");
     await rank.insertRank(req.body)
         .then(rank => res.status(201).json({
             message: "The rank is created",
