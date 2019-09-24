@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const rank = require('../models/rank.model')
 const m = require('../helpers/middlewares')
+const cors = require('cors')
 
 module.exports = router
 
