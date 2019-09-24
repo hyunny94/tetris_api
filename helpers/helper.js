@@ -7,7 +7,7 @@ function writeJSONFile(content) {
                 return console.log(err)
             }
         })
-    console.log('the file was save!');
+    console.log('the file was saved!');
 }
 
 module.exports = {

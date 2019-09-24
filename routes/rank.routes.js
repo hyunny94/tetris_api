@@ -1,18 +1,12 @@
 const express = require('express')
 const router = express.Router()
 const rank = require('../models/rank.model')
-const m = require('../helpers/middlewares')
-// const cors = require('cors')
-
-// router.options("https://master.d1eay1f6v0z5km.amplifyapp.com", cors())
 
 module.exports = router
 
 router.get('/', async (req, res) => {
-    // res.header("Access-Control-Allow-Origin", "https://master.d1eay1f6v0z5km.amplifyapp.com");
     await rank.getRanks()
         .then(ranks => {
-            // console.log(res);
             return res.json(ranks);
         })
         .catch(err => {
@@ -24,10 +18,7 @@ router.get('/', async (req, res) => {
         })
 })
 
-router.post('/', m.checkFieldsRank, async (req, res) => {
-    // res.header("Access-Control-Allow-Origin", "https://master.d1eay1f6v0z5km.amplifyapp.com");
-    // res.header('Access-Control-Allow-Methods: POST');
-    // res.header('Access-Control-Allow-Headers: Origin, Content-Type');
+router.post('/', async (req, res) => {
     await rank.insertRank(req.body)
         .then(rank => res.status(201).json({
             message: "The rank is created",
