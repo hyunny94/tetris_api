@@ -22,6 +22,8 @@ router.get('/', async (req, res) => {
         })
 })
 
+router.options("https://master.d1eay1f6v0z5km.amplifyapp.com", cors())
+
 router.post('/', cors(), async (req, res) => {
     // res.header("Access-Control-Allow-Origin", "https://master.d1eay1f6v0z5km.amplifyapp.com");
     // res.header('Access-Control-Allow-Methods: POST');
