@@ -34,6 +34,7 @@ const lockerRoom = []
 io.on("connection", socket => {
 	console.log("New client connected");
 	console.log("socket id is", socket.id);
+
 	// new match
 	if (lockerRoom.length == 1) {
 		var playerOneSocket = lockerRoom.pop();
@@ -58,6 +59,11 @@ io.on("connection", socket => {
 	socket.on("unpause", () => {
 		console.log("a player unpaused the game");
 		io.to(players[socket.id]).emit("unpause");
+	});
+
+	socket.on("line cleared", (numLines) => {
+		console.log("line cleared: ", numLines);
+		socket.to(players[socket.id]).emit("line cleared", numLines);
 	});
 	
 	socket.on("disconnect", () => {
