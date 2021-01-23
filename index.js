@@ -57,7 +57,8 @@ socketIO.on('connection', (socket) => {
 			opponentSocket.join(gameId)
 
 			// initialize game state
-			gameIdToState[gameId] = {paused: false, pausedBy: null, pauseTimer: null,}
+			gameIdToState[gameId] = {paused: false, pausedBy: null, 
+				pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, }
 
 			// two players are mapped to the same gameId
 			playerToGameId[socket]         = gameId
@@ -94,12 +95,21 @@ socketIO.on('connection', (socket) => {
 			gameState.pausedBy = playerId;
 			// automatically resume the game after 5 seconds.
 			gameState.pauseTimer = setTimeout(() => {
+				clearInterval(gameState.pauseSecTimer)
 				gameState.paused = false;
 				gameState.pausedBy = null;
 				gameState.pauseTimer = null;
+				gameState.pauseSecLeft = null;
+				gameState.pauseSecTimer = null;
 				gameIdToState.gameId = gameState;
 				socketIO.to(gameId).emit("pauseOrResume");
 			}, 5000)
+			gameState.pauseSecLeft = 5;
+			gameState.pauseSecTimer = setInterval(() => {
+				socketIO.to(gameId).emit("displayPauseSecLeft", gameState.pauseSecLeft);
+				gameState.pauseSecLeft -= 1;
+			}, 1000)
+
 			gameIdToState.gameId = gameState;
 			// emit "pauseOrResume" to everyone else in the room.
 			socketIO.to(gameId).emit("pauseOrResume");
@@ -109,9 +119,12 @@ socketIO.on('connection', (socket) => {
 			if (gameState.pausedBy === playerId) {
 				// cancel the 5 second timer for resuming
 				clearTimeout(gameState.pauseTimer);
+				clearInterval(gameState.pauseSecTimer);
 				gameState.paused = false;
 				gameState.pausedBy = null;
 				gameState.pauseTimer = null;
+				gameState.pauseSecLeft = null;
+				gameState.pauseSecTimer = null;
 				gameIdToState.gameId = gameState;
 				socketIO.to(gameId).emit("pauseOrResume");
 			}
