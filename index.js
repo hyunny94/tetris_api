@@ -57,7 +57,7 @@ socketIO.on('connection', (socket) => {
 			opponentSocket.join(gameId)
 
 			// initialize game state
-			gameIdToState[gameId] = {paused: false, pausedBy: null, }
+			gameIdToState[gameId] = {paused: false, pausedBy: null, pauseTimer: null,}
 
 			// two players are mapped to the same gameId
 			playerToGameId[socket]         = gameId
@@ -92,6 +92,14 @@ socketIO.on('connection', (socket) => {
 		if (!gameState.paused) {
 			gameState.paused = true;
 			gameState.pausedBy = playerId;
+			// automatically resume the game after 5 seconds.
+			gameState.pauseTimer = setTimeout(() => {
+				gameState.paused = false;
+				gameState.pausedBy = null;
+				gameState.pauseTimer = null;
+				gameIdToState.gameId = gameState;
+				socketIO.to(gameId).emit("pauseOrResume");
+			}, 5000)
 			gameIdToState.gameId = gameState;
 			// emit "pauseOrResume" to everyone else in the room.
 			socketIO.to(gameId).emit("pauseOrResume");
@@ -99,8 +107,11 @@ socketIO.on('connection', (socket) => {
 		// if the game is paused, the one who paused it can only unpause it. 
 		else {
 			if (gameState.pausedBy === playerId) {
+				// cancel the 5 second timer for resuming
+				clearTimeout(gameState.pauseTimer);
 				gameState.paused = false;
 				gameState.pausedBy = null;
+				gameState.pauseTimer = null;
 				gameIdToState.gameId = gameState;
 				socketIO.to(gameId).emit("pauseOrResume");
 			}
