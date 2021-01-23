@@ -35,6 +35,8 @@ const socketIO = require('socket.io')(app.listen('9000'), {
 // Object mapping player socket to active game id
 let playerToGameId = {}
 
+let gameIdToState = {}
+
 // sockets of players waiting to be matched
 let waitingRoom = []
 
@@ -53,6 +55,9 @@ socketIO.on('connection', (socket) => {
 			// have the two players join the room 
 			socket.join(gameId)
 			opponentSocket.join(gameId)
+
+			// initialize game state
+			gameIdToState[gameId] = {paused: false, pausedBy: null, }
 
 			// two players are mapped to the same gameId
 			playerToGameId[socket]         = gameId
@@ -75,6 +80,30 @@ socketIO.on('connection', (socket) => {
 			waitingRoom.unshift(socket)
 			console.log(playerId, " entered the waiting room.")
 			socket.emit("entered waiting room")
+		}
+	})
+
+	// pause or resume
+	socket.on("pauseOrResume", () => {
+		console.log("pause or resume");
+		let gameId = playerToGameId[socket];
+		let gameState = gameIdToState[gameId];
+		// if the game is running, anyone can pause the game.
+		if (!gameState.paused) {
+			gameState.paused = true;
+			gameState.pausedBy = playerId;
+			gameIdToState.gameId = gameState;
+			// emit "pauseOrResume" to everyone else in the room.
+			socketIO.to(gameId).emit("pauseOrResume");
+		}
+		// if the game is paused, the one who paused it can only unpause it. 
+		else {
+			if (gameState.pausedBy === playerId) {
+				gameState.paused = false;
+				gameState.pausedBy = null;
+				gameIdToState.gameId = gameState;
+				socketIO.to(gameId).emit("pauseOrResume");
+			}
 		}
 	})
 
