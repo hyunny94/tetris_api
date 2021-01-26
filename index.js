@@ -33,7 +33,7 @@ const socketIO = require('socket.io')(app.listen('9000'), {
   })
 
 // Object mapping player socket to active game id
-let playerToGameId = {}
+let playerIdToGameId = {}
 
 let gameIdToState = {}
 
@@ -61,13 +61,14 @@ socketIO.on('connection', (socket) => {
 				pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, }
 
 			// two players are mapped to the same gameId
-			playerToGameId[socket]         = gameId
-			playerToGameId[opponentSocket] = gameId
+			playerIdToGameId[socket.id]         = gameId
+			playerIdToGameId[opponentSocket.id] = gameId
 
 			// set a timer for 2 minutes and have it delete the mappings in playerToGameId object 
+			// TODO: do i have to give socket and opponentSocket as parameters? 
 			setTimeout(() => {
-				delete playerToGameId.socket
-				delete playerToGameId.opponentSocket
+				delete playerIdToGameId[socket.id]
+				delete playerIdToGameId[opponentSocket.id]
 				socketIO.to(gameId).emit("game over")
 				socket.leave(gameId)
 				opponentSocket.leave(gameId)
@@ -87,7 +88,7 @@ socketIO.on('connection', (socket) => {
 	// pause or resume
 	socket.on("pauseOrResume", () => {
 		console.log("pause or resume");
-		let gameId = playerToGameId[socket];
+		let gameId = playerIdToGameId[socket.id];
 		let gameState = gameIdToState[gameId];
 		// if the game is running, anyone can pause the game.
 		if (!gameState.paused) {
@@ -129,6 +130,13 @@ socketIO.on('connection', (socket) => {
 				socketIO.to(gameId).emit("pauseOrResume");
 			}
 		}
+	})
+
+	// Send lines
+	socket.on("addGarbageLines", (numLines) => {
+		console.log("send ", numLines, " lines.");
+		let gameId = playerIdToGameId[socket.id];
+		socket.to(gameId).emit("addGarbageLines", numLines);
 	})
 
 	// User Disconnect
