@@ -139,6 +139,24 @@ socketIO.on('connection', (socket) => {
 		socket.to(gameId).emit("addGarbageLines", numLines);
 	})
 
+	// Send gameBoard and active updates
+	socket.on("boardChange", (gameBoard, active, nextTetType) => {
+		let gameId = playerIdToGameId[socket.id];
+		socket.to(gameId).emit("boardChange", gameBoard, active, nextTetType);
+	})
+
+	// Send heldBlock update
+	socket.on("heldBlockChange", (heldBlock) => {
+		let gameId = playerIdToGameId[socket.id];
+		socket.to(gameId).emit("heldBlockChange", heldBlock);
+	})
+
+	// KOed
+	socket.on("KOed", () => {
+		let gameId = playerIdToGameId[socket.id];
+		socket.to(gameId).emit("KOed");
+	})
+
 	// User Disconnect
 	socket.on("disconnect", () => {
 		console.log("a user disconnected")
