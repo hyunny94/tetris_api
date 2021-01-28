@@ -47,35 +47,39 @@ socketIO.on('connection', (socket) => {
 	// Quick Match Request
 	socket.on("playTetrisBattleWithSomeone", () => {
 		console.log("Quick match request received. playerId: ", playerId)
-		// if there is someone in the waiting room, match the new user
+		// if there is someone in the waiting room
 		if (waitingRoom.length !== 0) {
-			const opponentSocket = waitingRoom.pop()
-			// create a new unique game id
-			const gameId = uuid.v1()
-			// have the two players join the room 
-			socket.join(gameId)
-			opponentSocket.join(gameId)
-
-			// initialize game state
-			gameIdToState[gameId] = {paused: false, pausedBy: null, 
-				pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, }
-
-			// two players are mapped to the same gameId
-			playerIdToGameId[socket.id]         = gameId
-			playerIdToGameId[opponentSocket.id] = gameId
-
-			// set a timer for 2 minutes and have it delete the mappings in playerToGameId object 
-			// TODO: do i have to give socket and opponentSocket as parameters? 
-			setTimeout(() => {
-				delete playerIdToGameId[socket.id]
-				delete playerIdToGameId[opponentSocket.id]
-				socketIO.to(gameId).emit("game over")
-				socket.leave(gameId)
-				opponentSocket.leave(gameId)
-			}, 120000, socket, opponentSocket)
-
-			// Let the players know they are matched
-			socketIO.to(gameId).emit("matched")
+			// If the person in the waiting room is myself.. still has to wait.
+			console.log(!(waitingRoom[0].id === playerId));
+			if (!(waitingRoom[0].id === playerId)) {
+				const opponentSocket = waitingRoom.pop()
+				// create a new unique game id
+				const gameId = uuid.v1()
+				// have the two players join the room 
+				socket.join(gameId)
+				opponentSocket.join(gameId)
+	
+				// initialize game state
+				gameIdToState[gameId] = {paused: false, pausedBy: null, 
+					pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, }
+	
+				// two players are mapped to the same gameId
+				playerIdToGameId[socket.id]         = gameId
+				playerIdToGameId[opponentSocket.id] = gameId
+	
+				// set a timer for 2 minutes and have it delete the mappings in playerToGameId object 
+				// TODO: do i have to give socket and opponentSocket as parameters? 
+				setTimeout(() => {
+					delete playerIdToGameId[socket.id]
+					delete playerIdToGameId[opponentSocket.id]
+					socketIO.to(gameId).emit("game over")
+					socket.leave(gameId)
+					opponentSocket.leave(gameId)
+				}, 120000, socket, opponentSocket)
+	
+				// Let the players know they are matched
+				socketIO.to(gameId).emit("matched")
+			}
 		}
 		// else the new user is put into the waiting room.
 		else {
