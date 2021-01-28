@@ -54,30 +54,36 @@ socketIO.on('connection', (socket) => {
 				const opponentSocket = waitingRoom.pop()
 				// create a new unique game id
 				const gameId = uuid.v1()
-				// have the two players join the room 
-				socket.join(gameId)
-				opponentSocket.join(gameId)
+				const sockets = [socket, opponentSocket]
+				sockets.forEach(socket => {
+					// have the two players join the room 
+					socket.join(gameId)
+					// two players are mapped to the same gameId
+					playerIdToGameId[socket.id]         = gameId
+				})
 	
 				// initialize game state
 				gameIdToState[gameId] = {paused: false, pausedBy: null, 
-					pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, }
-	
-				// two players are mapped to the same gameId
-				playerIdToGameId[socket.id]         = gameId
-				playerIdToGameId[opponentSocket.id] = gameId
-	
-				// set a timer for 2 minutes and have it delete the mappings in playerToGameId object 
-				// TODO: do i have to give socket and opponentSocket as parameters? 
-				setTimeout(() => {
-					delete playerIdToGameId[socket.id]
-					delete playerIdToGameId[opponentSocket.id]
-					socketIO.to(gameId).emit("game over")
-					socket.leave(gameId)
-					opponentSocket.leave(gameId)
-				}, 120000, socket, opponentSocket)
+					pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, 
+					timeUpdateInterval: null, secLeft: 120, sockets}
 	
 				// Let the players know they are matched
 				socketIO.to(gameId).emit("matched")
+
+				// Start an interval that updates players of remaining time every second. 
+				gameIdToState[gameId].timeUpdateInterval = setInterval(() => {
+					socketIO.to(gameId).emit("timeUpdate")
+					gameIdToState[gameId].secLeft -= 1
+					// Game over: 2 minutes of tetris battle ran out
+					if (gameIdToState[gameId].secLeft === 0) {
+						socketIO.to(gameId).emit("game over")
+						gameIdToState[gameId].sockets.forEach(socket => {
+							delete playerIdToGameId[socket.id]
+							socket.leave(gameId)
+						})
+						clearInterval(gameIdToState[gameId].timeUpdateInterval);
+					}
+				}, 1000)
 			}
 		}
 		// else the new user is put into the waiting room.
@@ -95,6 +101,8 @@ socketIO.on('connection', (socket) => {
 		let gameState = gameIdToState[gameId];
 		// if the game is running, anyone can pause the game.
 		if (!gameState.paused) {
+			// stop the game clock
+			clearInterval(gameState.timeUpdateInterval)
 			gameState.paused = true;
 			gameState.pausedBy = playerId;
 			// automatically resume the game after 5 seconds.
@@ -105,6 +113,19 @@ socketIO.on('connection', (socket) => {
 				gameState.pauseTimer = null;
 				gameState.pauseSecLeft = null;
 				gameState.pauseSecTimer = null;
+				gameState.timeUpdateInterval = setInterval(() => {
+					socketIO.to(gameId).emit("timeUpdate")
+					gameIdToState[gameId].secLeft -= 1
+					// Game over: 2 minutes of tetris battle ran out
+					if (gameIdToState[gameId].secLeft === 0) {
+						socketIO.to(gameId).emit("game over")
+						gameIdToState[gameId].sockets.forEach(socket => {
+							delete playerIdToGameId[socket.id]
+							socket.leave(gameId)
+						})
+						clearInterval(gameIdToState[gameId].timeUpdateInterval);
+					}
+				}, 1000)
 				gameIdToState.gameId = gameState;
 				socketIO.to(gameId).emit("pauseOrResume");
 			}, 5000)
@@ -129,6 +150,19 @@ socketIO.on('connection', (socket) => {
 				gameState.pauseTimer = null;
 				gameState.pauseSecLeft = null;
 				gameState.pauseSecTimer = null;
+				gameState.timeUpdateInterval = setInterval(() => {
+					socketIO.to(gameId).emit("timeUpdate")
+					gameIdToState[gameId].secLeft -= 1
+					// Game over: 2 minutes of tetris battle ran out
+					if (gameIdToState[gameId].secLeft === 0) {
+						socketIO.to(gameId).emit("game over")
+						gameIdToState[gameId].sockets.forEach(socket => {
+							delete playerIdToGameId[socket.id]
+							socket.leave(gameId)
+						})
+						clearInterval(gameIdToState[gameId].timeUpdateInterval);
+					}
+				}, 1000)
 				gameIdToState.gameId = gameState;
 				socketIO.to(gameId).emit("pauseOrResume");
 			}
@@ -164,6 +198,12 @@ socketIO.on('connection', (socket) => {
 	socket.on("linesSentChanged", (totalLinesSent) => {
 		let gameId = playerIdToGameId[socket.id];
 		socket.to(gameId).emit("linesSentChanged", totalLinesSent);
+	})
+
+	// communicating name to opponent 
+	socket.on("myNameIs", (name) => {
+		let gameId = playerIdToGameId[socket.id];
+		socket.to(gameId).emit("myNameIs", name);
 	})
 
 	// User Disconnect
