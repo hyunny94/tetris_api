@@ -50,7 +50,6 @@ socketIO.on('connection', (socket) => {
 		// if there is someone in the waiting room
 		if (waitingRoom.length !== 0) {
 			// If the person in the waiting room is myself.. still has to wait.
-			console.log(!(waitingRoom[0].id === playerId));
 			if (!(waitingRoom[0].id === playerId)) {
 				const opponentSocket = waitingRoom.pop()
 				// create a new unique game id
@@ -170,6 +169,11 @@ socketIO.on('connection', (socket) => {
 	// User Disconnect
 	socket.on("disconnect", () => {
 		console.log("a user disconnected")
+		// if a player exits out of tetris battle, make sure he is kicked out of the waiting room
+		if (waitingRoom.length > 0 && waitingRoom[0].id === socket.id) {
+			console.log("exitTetrisBattle2")
+			waitingRoom.pop();
+		}
 	})
 })
 
