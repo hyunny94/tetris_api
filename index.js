@@ -157,6 +157,12 @@ socketIO.on('connection', (socket) => {
 		socket.to(gameId).emit("KOed");
 	})
 
+	// totalLinesSent changed
+	socket.on("linesSentChanged", (totalLinesSent) => {
+		let gameId = playerIdToGameId[socket.id];
+		socket.to(gameId).emit("linesSentChanged", totalLinesSent);
+	})
+
 	// User Disconnect
 	socket.on("disconnect", () => {
 		console.log("a user disconnected")
