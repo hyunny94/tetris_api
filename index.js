@@ -24,10 +24,6 @@ app.use(cors(corsOptions))
 
 app.use(require('./routes/index.routes'))
 
-app.get('/', (req, res) => {
-	res.json({ message: "yo" })
-})
-
 const socketIO = require('socket.io')(app.listen('9000'), {
 	cors: corsOptions
   })
@@ -42,11 +38,57 @@ let waitingRoom = []
 
 socketIO.on('connection', (socket) => {
 	const playerId = socket.id
-	console.log("a user connected: ", playerId)
-	 
+	console.log("a user is online: ", playerId)
+	
+	// function to be called every second to update time for tetris battle players 
+	const timeUpdateInterval = (gameId) => {
+		socketIO.to(gameId).emit("timeUpdate")
+		gameIdToState[gameId].secLeft -= 1
+		// Game over: 2 minutes of tetris battle ran out
+		if (gameIdToState[gameId].secLeft === 0) {
+			socketIO.to(gameId).emit("game over")
+			gameIdToState[gameId].sockets.forEach(socket => {
+				delete playerIdToGameId[socket.id]
+				socket.leave(gameId)
+			})
+			clearInterval(gameIdToState[gameId].timeUpdateInterval);
+		}
+	}
+
+	// resume game 
+	const resumeGame = (gameId, gameState) => {
+		clearInterval(gameState.pauseSecTimer)
+		gameState.paused = false;
+		gameState.pausedBy = null;
+		gameState.pauseTimer = null;
+		gameState.pauseSecLeft = null;
+		gameState.pauseSecTimer = null;
+		gameState.timeUpdateInterval = setInterval(timeUpdateInterval, 1000, gameId)
+		gameIdToState.gameId = gameState;
+		socketIO.to(gameId).emit("pauseOrResume");
+	}
+
+	// pause game
+	const pauseGame = (gameId, gameState) => {
+		// stop the game clock
+		clearInterval(gameState.timeUpdateInterval)
+		gameState.paused = true;
+		gameState.pausedBy = playerId;
+		// automatically resume the game after 5 seconds.
+		gameState.pauseTimer = setTimeout(resumeGame, 5000, gameId, gameState)
+		gameState.pauseSecLeft = 5;
+		gameState.pauseSecTimer = setInterval(() => {
+			socketIO.to(gameId).emit("displayPauseSecLeft", gameState.pauseSecLeft);
+			gameState.pauseSecLeft -= 1;
+		}, 1000)
+		gameIdToState.gameId = gameState;
+		// emit "pauseOrResume" to everyone else in the room.
+		socketIO.to(gameId).emit("pauseOrResume");
+	}
+
 	// Quick Match Request
 	socket.on("playTetrisBattleWithSomeone", () => {
-		console.log("Quick match request received. playerId: ", playerId)
+		console.log("tetris battle match request received from playerId: ", playerId)
 		// if there is someone in the waiting room
 		if (waitingRoom.length !== 0) {
 			// If the person in the waiting room is myself.. still has to wait.
@@ -56,34 +98,26 @@ socketIO.on('connection', (socket) => {
 				const gameId = uuid.v1()
 				const sockets = [socket, opponentSocket]
 				sockets.forEach(socket => {
-					// have the two players join the room 
+					// have the players join the room 
 					socket.join(gameId)
 					// two players are mapped to the same gameId
-					playerIdToGameId[socket.id]         = gameId
+					playerIdToGameId[socket.id] = gameId
 				})
-	
-				// initialize game state
-				gameIdToState[gameId] = {paused: false, pausedBy: null, 
-					pauseTimer: null, pauseSecLeft: null, pauseSecTimer: null, 
-					timeUpdateInterval: null, secLeft: TETRIS_BATTLE_DURATION_IN_SEC, sockets}
 	
 				// Let the players know they are matched
 				socketIO.to(gameId).emit("matched")
-
-				// Start an interval that updates players of remaining time every second. 
-				gameIdToState[gameId].timeUpdateInterval = setInterval(() => {
-					socketIO.to(gameId).emit("timeUpdate")
-					gameIdToState[gameId].secLeft -= 1
-					// Game over: 2 minutes of tetris battle ran out
-					if (gameIdToState[gameId].secLeft === 0) {
-						socketIO.to(gameId).emit("game over")
-						gameIdToState[gameId].sockets.forEach(socket => {
-							delete playerIdToGameId[socket.id]
-							socket.leave(gameId)
-						})
-						clearInterval(gameIdToState[gameId].timeUpdateInterval);
-					}
-				}, 1000)
+	
+				// initialize game state
+				gameIdToState[gameId] = {
+					paused: false,                                                     // true if game is paused
+					pausedBy: null,                                                    // id of the player who paused the game
+					pauseTimer: null,                                                  // 5 seconds timeout to automatically resume the game when paused
+					pauseSecLeft: null,                                                // number of seconds left in pause
+					pauseSecTimer: null,                                               // a 1-second interval to notify players of secs left in pause
+					secLeft: TETRIS_BATTLE_DURATION_IN_SEC,                            // number of seconds left in the game
+					timeUpdateInterval: setInterval(timeUpdateInterval, 1000, gameId), // a 1-second interval to notify players of remaining time in the game
+					sockets,                                                           // sockets of the players in the game 
+				}
 			}
 		}
 		// else the new user is put into the waiting room.
@@ -101,70 +135,14 @@ socketIO.on('connection', (socket) => {
 		let gameState = gameIdToState[gameId];
 		// if the game is running, anyone can pause the game.
 		if (!gameState.paused) {
-			// stop the game clock
-			clearInterval(gameState.timeUpdateInterval)
-			gameState.paused = true;
-			gameState.pausedBy = playerId;
-			// automatically resume the game after 5 seconds.
-			gameState.pauseTimer = setTimeout(() => {
-				clearInterval(gameState.pauseSecTimer)
-				gameState.paused = false;
-				gameState.pausedBy = null;
-				gameState.pauseTimer = null;
-				gameState.pauseSecLeft = null;
-				gameState.pauseSecTimer = null;
-				gameState.timeUpdateInterval = setInterval(() => {
-					socketIO.to(gameId).emit("timeUpdate")
-					gameIdToState[gameId].secLeft -= 1
-					// Game over: 2 minutes of tetris battle ran out
-					if (gameIdToState[gameId].secLeft === 0) {
-						socketIO.to(gameId).emit("game over")
-						gameIdToState[gameId].sockets.forEach(socket => {
-							delete playerIdToGameId[socket.id]
-							socket.leave(gameId)
-						})
-						clearInterval(gameIdToState[gameId].timeUpdateInterval);
-					}
-				}, 1000)
-				gameIdToState.gameId = gameState;
-				socketIO.to(gameId).emit("pauseOrResume");
-			}, 5000)
-			gameState.pauseSecLeft = 5;
-			gameState.pauseSecTimer = setInterval(() => {
-				socketIO.to(gameId).emit("displayPauseSecLeft", gameState.pauseSecLeft);
-				gameState.pauseSecLeft -= 1;
-			}, 1000)
-
-			gameIdToState.gameId = gameState;
-			// emit "pauseOrResume" to everyone else in the room.
-			socketIO.to(gameId).emit("pauseOrResume");
+			pauseGame(gameId, gameState)
 		}
 		// if the game is paused, the one who paused it can only unpause it. 
 		else {
 			if (gameState.pausedBy === playerId) {
 				// cancel the 5 second timer for resuming
 				clearTimeout(gameState.pauseTimer);
-				clearInterval(gameState.pauseSecTimer);
-				gameState.paused = false;
-				gameState.pausedBy = null;
-				gameState.pauseTimer = null;
-				gameState.pauseSecLeft = null;
-				gameState.pauseSecTimer = null;
-				gameState.timeUpdateInterval = setInterval(() => {
-					socketIO.to(gameId).emit("timeUpdate")
-					gameIdToState[gameId].secLeft -= 1
-					// Game over: 2 minutes of tetris battle ran out
-					if (gameIdToState[gameId].secLeft === 0) {
-						socketIO.to(gameId).emit("game over")
-						gameIdToState[gameId].sockets.forEach(socket => {
-							delete playerIdToGameId[socket.id]
-							socket.leave(gameId)
-						})
-						clearInterval(gameIdToState[gameId].timeUpdateInterval);
-					}
-				}, 1000)
-				gameIdToState.gameId = gameState;
-				socketIO.to(gameId).emit("pauseOrResume");
+				resumeGame(gameId, gameState);
 			}
 		}
 	})
@@ -208,7 +186,7 @@ socketIO.on('connection', (socket) => {
 
 	// User Disconnect
 	socket.on("disconnect", () => {
-		console.log("a user disconnected")
+		console.log("a user disconnected: ", playerId)
 		// if a player exits out of tetris battle, make sure he is kicked out of the waiting room
 		if (waitingRoom.length > 0 && waitingRoom[0].id === socket.id) {
 			console.log("exitTetrisBattle2")
